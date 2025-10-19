@@ -15,7 +15,7 @@ Free online image resizer and crop tool built with React and TailwindCSS. Resize
 
 ## 🚀 Live Demo
 
-[View Demo](#)
+[View Demo](https://image-resizer-rosy.vercel.app/)
 
 <img width="1080" height="1080" alt="@witwebsolutions (4)" src="https://github.com/user-attachments/assets/47444944-5b6c-4be5-8a00-09da191b155b" />
 
