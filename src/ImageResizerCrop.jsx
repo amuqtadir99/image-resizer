@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Download, Scissors, Maximize2, RotateCcw, Info, Github, Linkedin, Globe } from 'lucide-react';
+import { Upload, Download, Scissors, Maximize2, RotateCcw, Info, Github, Linkedin, Globe, Smartphone } from 'lucide-react';
 
 export default function ImageResizerCrop() {
   const [image, setImage] = useState(null);
@@ -254,8 +254,8 @@ export default function ImageResizerCrop() {
     ctx.lineTo(scaledCrop.x + scaledCrop.width, scaledCrop.y + (scaledCrop.height * 2) / 3);
     ctx.stroke();
     
-    // Draw corner handles (larger and more visible)
-    const handleSize = 12;
+    // Draw corner handles (larger for mobile)
+    const handleSize = 16; // Increased from 12 for better mobile touch
     ctx.fillStyle = '#3b82f6';
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
@@ -272,7 +272,7 @@ export default function ImageResizerCrop() {
       ctx.strokeRect(x - handleSize / 2, y - handleSize / 2, handleSize, handleSize);
     });
     
-    // Draw edge handles
+    // Draw edge handles (larger for mobile)
     const edges = [
       { x: scaledCrop.x + scaledCrop.width / 2, y: scaledCrop.y, cursor: 'n-resize' },
       { x: scaledCrop.x + scaledCrop.width / 2, y: scaledCrop.y + scaledCrop.height, cursor: 's-resize' },
@@ -296,8 +296,8 @@ export default function ImageResizerCrop() {
       height: cropArea.height * scale
     };
     
-    const handleSize = 12;
-    const threshold = handleSize;
+    const handleSize = 16; // Increased for better mobile touch
+    const threshold = handleSize * 1.5; // Larger hit area for touch
     
     // Check corners
     const corners = [
@@ -351,16 +351,44 @@ export default function ImageResizerCrop() {
     return cursors[handle] || 'default';
   };
 
-  const handleMouseDown = (e) => {
-    if (!cropArea) return;
-    
+  // Unified function to get coordinates from mouse or touch event
+  const getEventCoordinates = (e) => {
     const canvas = cropCanvasRef.current;
+    if (!canvas) return null;
+
     const rect = canvas.getBoundingClientRect();
     const scale = canvas.width / rect.width;
-    const x = (e.clientX - rect.left) * scale;
-    const y = (e.clientY - rect.top) * scale;
     
-    const imageScale = image.width / canvas.width;
+    let clientX, clientY;
+    
+    if (e.type.startsWith('touch')) {
+      const touch = e.touches[0] || e.changedTouches[0];
+      clientX = touch.clientX;
+      clientY = touch.clientY;
+    } else {
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+    
+    const x = (clientX - rect.left) * scale;
+    const y = (clientY - rect.top) * scale;
+    
+    return { x, y, scale };
+  };
+
+  const handleStart = (e) => {
+    // Prevent default behavior for touch events
+    if (e.type === 'touchstart') {
+      e.preventDefault();
+    }
+    
+    if (!cropArea) return;
+    
+    const coords = getEventCoordinates(e);
+    if (!coords) return;
+    
+    const { x, y } = coords;
+    const imageScale = image.width / cropCanvasRef.current.width;
     const handle = getHandleAtPosition(x, y, 1 / imageScale);
     
     if (handle) {
@@ -374,18 +402,23 @@ export default function ImageResizerCrop() {
     }
   };
 
-  const handleMouseMove = (e) => {
+  const handleMove = (e) => {
+    // Prevent default to stop scrolling on touch devices
+    if (e.type === 'touchmove' && (isDragging || isResizing)) {
+      e.preventDefault();
+    }
+    
     const canvas = cropCanvasRef.current;
     if (!canvas) return;
     
-    const rect = canvas.getBoundingClientRect();
-    const scale = canvas.width / rect.width;
-    const x = (e.clientX - rect.left) * scale;
-    const y = (e.clientY - rect.top) * scale;
+    const coords = getEventCoordinates(e);
+    if (!coords) return;
+    
+    const { x, y } = coords;
     const imageScale = image.width / canvas.width;
     
-    // Update cursor
-    if (!isDragging && !isResizing) {
+    // Update cursor for mouse events
+    if (e.type === 'mousemove' && !isDragging && !isResizing) {
       const handle = getHandleAtPosition(x, y, 1 / imageScale);
       canvas.style.cursor = handle ? getCursor(handle) : 'default';
     }
@@ -499,7 +532,7 @@ export default function ImageResizerCrop() {
     }
   };
 
-  const handleMouseUp = () => {
+  const handleEnd = () => {
     setIsDragging(false);
     setIsResizing(false);
     setDragStart(null);
@@ -570,28 +603,28 @@ export default function ImageResizerCrop() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex flex-col">
-      <div className="flex-grow p-6">
+      <div className="flex-grow p-4 md:p-6">
         <div className="max-w-6xl mx-auto">
           {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-gray-800 mb-2 flex items-center justify-center gap-3">
-              <Maximize2 className="w-10 h-10 text-blue-600" />
+          <div className="text-center mb-6 md:mb-8">
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2 flex items-center justify-center gap-2 md:gap-3">
+              <Maximize2 className="w-8 h-8 md:w-10 md:h-10 text-blue-600" />
               Image Resizer & Crop
             </h1>
-            <p className="text-gray-600">Resize and crop images directly in your browser. All processing happens locally.</p>
+            <p className="text-sm md:text-base text-gray-600 px-4">Resize and crop images directly in your browser. All processing happens locally.</p>
           </div>
 
           {/* Main Container */}
-          <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
+          <div className="bg-white rounded-2xl shadow-xl p-4 md:p-8 mb-6">
             {!image ? (
               /* Upload Area */
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border-4 border-dashed border-blue-300 rounded-xl p-16 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
+                className="border-4 border-dashed border-blue-300 rounded-xl p-12 md:p-16 text-center cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-all"
               >
-                <Upload className="w-16 h-16 text-blue-500 mx-auto mb-4" />
-                <p className="text-xl font-semibold text-gray-700 mb-2">Click to upload an image</p>
-                <p className="text-gray-500">or drag and drop</p>
+                <Upload className="w-12 h-12 md:w-16 md:h-16 text-blue-500 mx-auto mb-4" />
+                <p className="text-lg md:text-xl font-semibold text-gray-700 mb-2">Click to upload an image</p>
+                <p className="text-sm md:text-base text-gray-500">or drag and drop</p>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -601,36 +634,36 @@ export default function ImageResizerCrop() {
                 />
               </div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-4 md:space-y-6">
                 {/* Tabs */}
-                <div className="flex gap-2 border-b border-gray-200">
+                <div className="flex gap-2 border-b border-gray-200 overflow-x-auto">
                   <button
                     onClick={() => setActiveTab('resize')}
-                    className={`px-6 py-3 font-semibold transition-all ${
+                    className={`px-4 md:px-6 py-2 md:py-3 font-semibold transition-all whitespace-nowrap text-sm md:text-base ${
                       activeTab === 'resize'
                         ? 'text-blue-600 border-b-2 border-blue-600'
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    <Maximize2 className="w-5 h-5 inline mr-2" />
+                    <Maximize2 className="w-4 h-4 md:w-5 md:h-5 inline mr-2" />
                     Resize
                   </button>
                   <button
                     onClick={() => setActiveTab('crop')}
-                    className={`px-6 py-3 font-semibold transition-all ${
+                    className={`px-4 md:px-6 py-2 md:py-3 font-semibold transition-all whitespace-nowrap text-sm md:text-base ${
                       activeTab === 'crop'
                         ? 'text-blue-600 border-b-2 border-blue-600'
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    <Scissors className="w-5 h-5 inline mr-2" />
+                    <Scissors className="w-4 h-4 md:w-5 md:h-5 inline mr-2" />
                     Crop
                   </button>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-8">
+                <div className="grid md:grid-cols-2 gap-6 md:gap-8">
                   {/* Controls Panel */}
-                  <div className="space-y-6">
+                  <div className="space-y-4 md:space-y-6">
                     {activeTab === 'resize' ? (
                       /* Resize Controls */
                       <>
@@ -638,7 +671,7 @@ export default function ImageResizerCrop() {
                           <label className="block text-sm font-semibold text-gray-700 mb-2">
                             Original Size
                           </label>
-                          <p className="text-gray-600">
+                          <p className="text-sm md:text-base text-gray-600">
                             {originalDimensions.width} × {originalDimensions.height} px
                           </p>
                         </div>
@@ -650,7 +683,7 @@ export default function ImageResizerCrop() {
                           <div className="flex gap-2">
                             <button
                               onClick={() => setResizeMode('pixels')}
-                              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
+                              className={`flex-1 py-2 px-3 md:px-4 rounded-lg font-medium transition-all text-sm md:text-base ${
                                 resizeMode === 'pixels'
                                   ? 'bg-blue-600 text-white'
                                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -660,7 +693,7 @@ export default function ImageResizerCrop() {
                             </button>
                             <button
                               onClick={() => setResizeMode('percentage')}
-                              className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all ${
+                              className={`flex-1 py-2 px-3 md:px-4 rounded-lg font-medium transition-all text-sm md:text-base ${
                                 resizeMode === 'percentage'
                                   ? 'bg-blue-600 text-white'
                                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -684,36 +717,36 @@ export default function ImageResizerCrop() {
                             </span>
                           </label>
 
-                          <div className="grid grid-cols-2 gap-4">
+                          <div className="grid grid-cols-2 gap-3 md:gap-4">
                             <div>
-                              <label className="block text-sm text-gray-600 mb-1">
+                              <label className="block text-xs md:text-sm text-gray-600 mb-1">
                                 Width {resizeMode === 'percentage' ? '(%)' : '(px)'}
                               </label>
                               <input
                                 type="number"
                                 value={resizeWidth}
                                 onChange={(e) => handleResizeWidthChange(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="w-full px-3 md:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
                                 min="1"
                               />
                             </div>
                             <div>
-                              <label className="block text-sm text-gray-600 mb-1">
+                              <label className="block text-xs md:text-sm text-gray-600 mb-1">
                                 Height {resizeMode === 'percentage' ? '(%)' : '(px)'}
                               </label>
                               <input
                                 type="number"
                                 value={resizeHeight}
                                 onChange={(e) => handleResizeHeightChange(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                className="w-full px-3 md:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
                                 min="1"
                               />
                             </div>
                           </div>
                         </div>
 
-                        <div className="bg-blue-50 p-4 rounded-lg">
-                          <p className="text-sm text-blue-800">
+                        <div className="bg-blue-50 p-3 md:p-4 rounded-lg">
+                          <p className="text-xs md:text-sm text-blue-800">
                             <strong>New Size:</strong> {getResizedDimensions().width} × {getResizedDimensions().height} px
                           </p>
                         </div>
@@ -728,7 +761,7 @@ export default function ImageResizerCrop() {
                           <select
                             value={aspectRatioPreset}
                             onChange={(e) => setAspectRatioPreset(e.target.value)}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            className="w-full px-3 md:px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base"
                           >
                             <option value="free">Free</option>
                             <option value="1:1">Square (1:1)</option>
@@ -741,14 +774,14 @@ export default function ImageResizerCrop() {
                         </div>
 
                         {cropArea && (
-                          <div className="bg-blue-50 p-4 rounded-lg space-y-2">
-                            <p className="text-sm text-blue-800">
+                          <div className="bg-blue-50 p-3 md:p-4 rounded-lg space-y-2">
+                            <p className="text-xs md:text-sm text-blue-800">
                               <strong>Crop Area:</strong>
                             </p>
-                            <p className="text-sm text-blue-700">
+                            <p className="text-xs md:text-sm text-blue-700">
                               Position: X:{Math.round(cropArea.x)}, Y:{Math.round(cropArea.y)}
                             </p>
-                            <p className="text-sm text-blue-700">
+                            <p className="text-xs md:text-sm text-blue-700">
                               Size: {Math.round(cropArea.width)} × {Math.round(cropArea.height)} px
                             </p>
                           </div>
@@ -756,20 +789,24 @@ export default function ImageResizerCrop() {
 
                         <button
                           onClick={resetCrop}
-                          className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all"
+                          className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all text-sm md:text-base"
                         >
                           <RotateCcw className="w-4 h-4" />
                           Reset Crop Area
                         </button>
 
-                        <div className="bg-amber-50 border border-amber-200 p-4 rounded-lg">
-                          <p className="text-sm text-amber-800 flex items-start gap-2">
+                        <div className="bg-amber-50 border border-amber-200 p-3 md:p-4 rounded-lg">
+                          <p className="text-xs md:text-sm text-amber-800 flex items-start gap-2">
                             <Info className="w-4 h-4 mt-0.5 flex-shrink-0" />
                             <span>
                               <strong>How to crop:</strong><br/>
                               • Drag corners/edges to resize<br/>
                               • Drag center to move<br/>
-                              • Grid shows rule of thirds
+                              • Grid shows rule of thirds<br/>
+                              <span className="inline-flex items-center gap-1 mt-1">
+                                <Smartphone className="w-3 h-3" />
+                                Touch-friendly on mobile
+                              </span>
                             </span>
                           </p>
                         </div>
@@ -786,7 +823,7 @@ export default function ImageResizerCrop() {
                           <button
                             key={format}
                             onClick={() => setOutputFormat(format)}
-                            className={`py-2 px-4 rounded-lg font-medium transition-all ${
+                            className={`py-2 px-3 md:px-4 rounded-lg font-medium transition-all text-sm md:text-base ${
                               outputFormat === format
                                 ? 'bg-blue-600 text-white'
                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -816,19 +853,19 @@ export default function ImageResizerCrop() {
                     )}
 
                     {/* Action Buttons */}
-                    <div className="flex gap-3 pt-4">
+                    <div className="flex gap-2 md:gap-3 pt-4">
                       <button
                         onClick={downloadImage}
-                        className="flex-1 flex items-center justify-center gap-2 py-3 px-6 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-semibold"
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 md:py-3 px-4 md:px-6 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-semibold text-sm md:text-base"
                       >
-                        <Download className="w-5 h-5" />
+                        <Download className="w-4 h-4 md:w-5 md:h-5" />
                         Download
                       </button>
                       <button
                         onClick={reset}
-                        className="flex items-center justify-center gap-2 py-3 px-6 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all font-semibold"
+                        className="flex items-center justify-center gap-2 py-2.5 md:py-3 px-4 md:px-6 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all font-semibold text-sm md:text-base"
                       >
-                        <RotateCcw className="w-5 h-5" />
+                        <RotateCcw className="w-4 h-4 md:w-5 md:h-5" />
                         Reset
                       </button>
                     </div>
@@ -839,22 +876,28 @@ export default function ImageResizerCrop() {
                     <label className="block text-sm font-semibold text-gray-700">
                       Preview
                     </label>
-                    <div className="border-2 border-gray-200 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center min-h-[400px]">
+                    <div className="border-2 border-gray-200 rounded-lg overflow-hidden bg-gray-50 flex items-center justify-center min-h-[300px] md:min-h-[400px]">
                       {activeTab === 'resize' ? (
                         <canvas
                           ref={canvasRef}
-                          className="max-w-full max-h-[600px] object-contain"
+                          className="max-w-full max-h-[500px] md:max-h-[600px] object-contain"
                         />
                       ) : (
-                        <div ref={cropContainerRef} className="w-full p-4">
+                        <div ref={cropContainerRef} className="w-full p-2 md:p-4">
                           <canvas
                             ref={cropCanvasRef}
-                            onMouseDown={handleMouseDown}
-                            onMouseMove={handleMouseMove}
-                            onMouseUp={handleMouseUp}
-                            onMouseLeave={handleMouseUp}
-                            className="max-w-full max-h-[600px] object-contain mx-auto"
-                            style={{ cursor: 'default' }}
+                            onMouseDown={handleStart}
+                            onMouseMove={handleMove}
+                            onMouseUp={handleEnd}
+                            onMouseLeave={handleEnd}
+                            onTouchStart={handleStart}
+                            onTouchMove={handleMove}
+                            onTouchEnd={handleEnd}
+                            className="max-w-full max-h-[500px] md:max-h-[600px] object-contain mx-auto"
+                            style={{ 
+                              cursor: 'default',
+                              touchAction: 'none' // Prevents scrolling during touch
+                            }}
                           />
                         </div>
                       )}
@@ -866,16 +909,16 @@ export default function ImageResizerCrop() {
           </div>
 
           {/* Info Section */}
-          <div className="bg-white rounded-2xl shadow-xl p-8">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">About Image Resizer & Crop</h2>
-            <p className="text-gray-600 mb-6">
+          <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8">
+            <h2 className="text-xl md:text-2xl font-bold text-gray-800 mb-4">About Image Resizer & Crop</h2>
+            <p className="text-sm md:text-base text-gray-600 mb-6">
               Resize and crop images with precision directly in your browser. All processing happens locally - your images never leave your device.
             </p>
             
-            <div className="grid md:grid-cols-2 gap-8">
+            <div className="grid md:grid-cols-2 gap-6 md:gap-8">
               <div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-3">Features</h3>
-                <ul className="space-y-2 text-gray-600">
+                <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-3">Features</h3>
+                <ul className="space-y-2 text-sm md:text-base text-gray-600">
                   <li className="flex items-start gap-2">
                     <span className="text-blue-600 mt-1">•</span>
                     <span>Resize by pixels or percentage</span>
@@ -887,6 +930,10 @@ export default function ImageResizerCrop() {
                   <li className="flex items-start gap-2">
                     <span className="text-blue-600 mt-1">•</span>
                     <span>Advanced crop tool with drag & drop</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-1">•</span>
+                    <span>Touch-friendly mobile interface</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-blue-600 mt-1">•</span>
@@ -912,8 +959,8 @@ export default function ImageResizerCrop() {
               </div>
               
               <div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-3">Tips</h3>
-                <ul className="space-y-2 text-gray-600">
+                <h3 className="text-base md:text-lg font-semibold text-gray-800 mb-3">Tips</h3>
+                <ul className="space-y-2 text-sm md:text-base text-gray-600">
                   <li className="flex items-start gap-2">
                     <span className="text-green-600 mt-1">💡</span>
                     <span>Use PNG for images with transparency</span>
@@ -946,59 +993,59 @@ export default function ImageResizerCrop() {
       </div>
 
       {/* Developer Footer */}
-      <footer className="bg-gradient-to-r from-gray-900 to-gray-800 text-white py-8 mt-12">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+      <footer className="bg-gradient-to-r from-gray-900 to-gray-800 text-white py-6 md:py-8 mt-12">
+        <div className="max-w-6xl mx-auto px-4 md:px-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
             {/* Creator Info */}
             <div className="text-center md:text-left">
-              <p className="text-lg font-semibold mb-1">
+              <p className="text-base md:text-lg font-semibold mb-1">
                 Created by <span className="text-blue-400">Abdul Muqtadir</span>
               </p>
-              <p className="text-sm text-gray-400">
+              <p className="text-xs md:text-sm text-gray-400">
                 <span className="text-gray-500">@witwebsolutions</span> • Full Stack Developer
               </p>
             </div>
             
             {/* Social Links */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 md:gap-3 flex-wrap justify-center">
               <a
                 href="https://github.com/amuqtadir99/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-all duration-200 hover:scale-105 border border-gray-700 hover:border-gray-600"
+                className="flex items-center gap-2 px-3 md:px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-all duration-200 hover:scale-105 border border-gray-700 hover:border-gray-600 text-sm"
                 title="GitHub Profile"
               >
-                <Github className="w-5 h-5" />
-                <span className="text-sm font-medium">GitHub</span>
+                <Github className="w-4 h-4 md:w-5 md:h-5" />
+                <span className="text-xs md:text-sm font-medium">GitHub</span>
               </a>
               
               <a
                 href="https://www.linkedin.com/in/amuqtadir1/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-all duration-200 hover:scale-105 border border-blue-500"
+                className="flex items-center gap-2 px-3 md:px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-all duration-200 hover:scale-105 border border-blue-500 text-sm"
                 title="LinkedIn Profile"
               >
-                <Linkedin className="w-5 h-5" />
-                <span className="text-sm font-medium">LinkedIn</span>
+                <Linkedin className="w-4 h-4 md:w-5 md:h-5" />
+                <span className="text-xs md:text-sm font-medium">LinkedIn</span>
               </a>
               
               <a
                 href="https://www.witweb.com.au"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-all duration-200 hover:scale-105 border border-indigo-500"
+                className="flex items-center gap-2 px-3 md:px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-all duration-200 hover:scale-105 border border-indigo-500 text-sm"
                 title="Portfolio Website"
               >
-                <Globe className="w-5 h-5" />
-                <span className="text-sm font-medium">Portfolio</span>
+                <Globe className="w-4 h-4 md:w-5 md:h-5" />
+                <span className="text-xs md:text-sm font-medium">Portfolio</span>
               </a>
             </div>
           </div>
           
           {/* Copyright */}
-          <div className="text-center mt-6 pt-6 border-t border-gray-700">
-            <p className="text-sm text-gray-400">
+          <div className="text-center mt-4 md:mt-6 pt-4 md:pt-6 border-t border-gray-700">
+            <p className="text-xs md:text-sm text-gray-400">
               © 2025 Abdul Muqtadir. Built with React & TailwindCSS • All processing happens locally in your browser
             </p>
           </div>
